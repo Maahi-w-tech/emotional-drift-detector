@@ -228,7 +228,7 @@ def show_analyzer_page():
                 
                 with st.spinner("🧠 Processing your content with AI models..."):
                     try:
-                        chunks, emotion_vectors, drifts, contradictions, confusions, explanations = run_pipeline(text_input)
+                        chunks, emotion_vectors, drifts, contradictions, confusions, explanations, recommendations = run_pipeline(text_input, target_emotion)
                         
                         # Clear loading message
                         loading_placeholder.empty()
@@ -545,24 +545,17 @@ def show_analyzer_page():
                                     percentage = score * 100
                                     st.markdown(f"- **{emotion}**: {percentage:.1f}%")
                                 
-                                # Show explanations if flagged
-                                if is_flagged:
-                                    for key, exp in explanations.items():
-                                        if str(idx) in key:
-                                            st.warning(f"**⚠️ Issue Detected:** {exp}")
-                                            
-                                            if "drift" in key:
-                                                st.markdown("""
-                                                    **💡 Recommendation:**  
-                                                    Maintain a consistent tone by aligning language with your initial style. 
-                                                    Consider revising this section to match the emotional tone of your opening.
-                                                """)
-                                            elif "confusion" in key:
-                                                st.markdown("""
-                                                    **💡 Recommendation:**  
-                                                    Simplify the language and clarify your main point. 
-                                                    This section may benefit from more focused messaging.
-                                                """)
+                                        # Show explanations and recommendations if flagged
+                                        if is_flagged:
+                                            for key, exp in explanations.items():
+                                                if str(idx) in key:
+                                                    st.warning(f"**⚠️ Issue Detected:** {exp}")
+                                                    
+                                            # Show recommendation if exists
+                                            rec_key = next((k for k in recommendations if str(idx) in k), None)
+                                            if rec_key and recommendations[rec_key]:
+                                                st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
+                                                st.success(recommendations[rec_key])
                         
                         # Flagged Sections Summary
                         if drifts or contradictions or confusions:
@@ -578,23 +571,16 @@ def show_analyzer_page():
                                         st.markdown(f"**Full Text:**")
                                         st.info(chunk)
                                         
-                                        # Show explanations
+                                        # Show explanations and recommendations
                                         for key, exp in explanations.items():
                                             if str(idx) in key:
                                                 st.warning(f"**⚠️ Issue Detected:** {exp}")
                                                 
-                                                if "drift" in key:
-                                                    st.markdown("""
-                                                        **💡 Recommendation:**  
-                                                        Maintain a consistent tone by aligning language with your initial style. 
-                                                        Consider revising this section to match the emotional tone of your opening.
-                                                    """)
-                                                elif "confusion" in key:
-                                                    st.markdown("""
-                                                        **💡 Recommendation:**  
-                                                        Simplify the language and clarify your main point. 
-                                                        This section may benefit from more focused messaging.
-                                                    """)
+                                        # Show recommendation if exists
+                                        rec_key = next((k for k in recommendations if str(idx) in k), None)
+                                        if rec_key and recommendations[rec_key]:
+                                            st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
+                                            st.success(recommendations[rec_key])
                             
                             # Show contradictions separately
                             if contradictions:

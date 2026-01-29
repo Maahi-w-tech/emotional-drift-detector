@@ -6,6 +6,7 @@ from utils import preprocess_and_chunk, generate_explanation
 # Global variables to cache models
 _emotion_classifier = None
 _nli_model = None
+_regenerator = None
 
 def get_emotion_classifier():
     global _emotion_classifier
@@ -18,6 +19,25 @@ def get_nli_model():
     if _nli_model is None:
         _nli_model = pipeline("text-classification", model="roberta-large-mnli")
     return _nli_model
+
+def get_regenerator():
+    global _regenerator
+    if _regenerator is None:
+        _regenerator = pipeline("text2text-generation", model="google/flan-t5-base")
+    return _regenerator
+
+def regenerate_text(text, target_emotion):
+    if not target_emotion or target_emotion.startswith("None"):
+        return None
+    
+    regenerator = get_regenerator()
+    prompt = f"Rewrite the following text to have a {target_emotion} tone: {text}"
+    try:
+        result = regenerator(prompt, max_length=len(text.split()) * 2 + 50, do_sample=True)[0]['generated_text']
+        return result
+    except Exception as e:
+        print(f"Error in text regeneration: {str(e)}")
+        return None
 
 # Map emotions to our labels (approximate for demo)
 emotion_map = {
@@ -108,18 +128,37 @@ def detect_confusion(emotion_vectors, threshold=0.8):
             confusions.append(idx)
     return confusions
 
-def run_pipeline(text):
+def run_pipeline(text, target_emotion=None):
     chunks = preprocess_and_chunk(text)
     emotion_vectors, emotion_dicts = classify_emotions(chunks)
     drifts = detect_drift(emotion_vectors)
     contradictions = detect_contradictions(chunks)
     confusions = detect_confusion(emotion_vectors)
-    # Generate explanations
+    
+    # Generate explanations and recommendations
     explanations = {}
+    recommendations = {}
+    
     for start, end in drifts:
         explanations[f"drift_{start}_{end}"] = generate_explanation("drift", start, emotion_dicts[start], emotion_dicts[end])
+        if target_emotion:
+             recommendations[f"drift_{start}_{end}"] = regenerate_text(chunks[start], target_emotion)
+             
     for i, j, details in contradictions:
         explanations[f"contradict_{i}_{j}"] = generate_explanation("contradiction", i, {}, {}, details)
+        
     for idx in confusions:
         explanations[f"confusion_{idx}"] = generate_explanation("confusion", idx, {}, {})
-    return chunks, emotion_vectors, drifts, contradictions, confusions, explanations
+        if target_emotion:
+            recommendations[f"confusion_{idx}"] = regenerate_text(chunks[idx], target_emotion)
+            
+    # Check if dominant emotion matches target for all segments
+    if target_emotion and not target_emotion.startswith("None"):
+        labels = ["Inspirational", "Informative", "Neutral", "Empathetic", "Assertive", "Aggressive", "Defensive"]
+        for idx, vec in enumerate(emotion_vectors):
+            dominant_idx = vec.index(max(vec))
+            dominant_emotion = labels[dominant_idx]
+            if dominant_emotion != target_emotion and f"confusion_{idx}" not in recommendations and f"drift_{idx}_" not in "".join(recommendations.keys()):
+                recommendations[f"target_mismatch_{idx}"] = regenerate_text(chunks[idx], target_emotion)
+
+    return chunks, emotion_vectors, drifts, contradictions, confusions, explanations, recommendations
