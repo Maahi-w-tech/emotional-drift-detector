@@ -37,8 +37,8 @@ def show_landing_page():
                 See how your content <em>feels</em> — not just what it says
             </p>
             <p style='font-size: 1.2rem; color: #4A3267; opacity: 0.8; max-width: 900px; margin: 0 auto; line-height: 1.8;'>
-                Emotional Drift Detector is an AI-powered tool that analyzes long-form content to detect emotional tone shifts, 
-                messaging contradictions, and audience confusion points — <strong>before your audience feels them</strong>.
+                Emotional Drift Detector is an AI-powered tool that analyzes long-form content to detect emotional tone shifts 
+                and audience confusion points — <strong>before your audience feels them</strong>.
             </p>
             <p style='font-size: 1.1rem; color: #4A3267; opacity: 0.8; max-width: 900px; margin: 2rem auto 3rem auto; line-height: 1.8;'>
                 Whether you're a creator, brand, educator, or organization, our AI helps you maintain emotional consistency, 
@@ -68,7 +68,6 @@ def show_landing_page():
             </p>
             <ul style='font-size: 1.1rem; color: #4A3267; line-height: 2; margin-left: 2rem;'>
                 <li>✗ unintentionally shifts tone</li>
-                <li>✗ contradicts its own message</li>
                 <li>✗ confuses or alienates readers</li>
             </ul>
             <p style='font-size: 1.15rem; color: #4A3267; line-height: 1.8; margin-top: 1rem; font-weight: 600;'>
@@ -90,7 +89,7 @@ def show_landing_page():
             <ul style='font-size: 1.1rem; color: #4A3267; line-height: 2; margin-left: 2rem;'>
                 <li>✓ drifts from inspirational to aggressive</li>
                 <li>✓ loses emotional coherence</li>
-                <li>✓ sends mixed or conflicting signals</li>
+                <li>✓ sends mixed signals</li>
             </ul>
             <p style='font-size: 1.15rem; color: #4A3267; line-height: 1.8; margin-top: 1rem; font-weight: 600;'>
                 You don't just get alerts — you get clear explanations and actionable guidance.
@@ -188,7 +187,7 @@ def show_analyzer_page():
         <div style='text-align: center; padding: 2rem 0;'>
             <h1>🎭 Emotional Drift Detector</h1>
             <p style='font-size: 1.2rem; color: #4A3267; opacity: 0.9;'>
-                Analyze emotional tone drift, contradictions, and confusion in long-form content with AI-powered insights
+                Analyze emotional tone drift and confusion in long-form content with AI-powered insights
             </p>
         </div>
     """, unsafe_allow_html=True)
@@ -405,7 +404,7 @@ def show_analyzer_page():
                         st.markdown("---")
                         st.markdown("## 📈 Analysis Summary")
                         
-                        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+                        stat_col1, stat_col2, stat_col3 = st.columns(3)
                         
                         with stat_col1:
                             st.markdown(f"""
@@ -428,16 +427,6 @@ def show_analyzer_page():
                             """, unsafe_allow_html=True)
                         
                         with stat_col3:
-                            st.markdown(f"""
-                                <div style='background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); 
-                                            padding: 1.5rem; border-radius: 15px; text-align: center; 
-                                            border: 2px solid #C6BADE; box-shadow: 0 4px 6px rgba(74, 50, 103, 0.1);'>
-                                    <h3 style='color: #DE638A; margin: 0;'>{len(st.session_state.contradictions)}</h3>
-                                    <p style='color: #4A3267; margin: 0.5rem 0 0 0;'>Contradictions</p>
-                                </div>
-                            """, unsafe_allow_html=True)
-                        
-                        with stat_col4:
                             st.markdown(f"""
                                 <div style='background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); 
                                             padding: 1.5rem; border-radius: 15px; text-align: center; 
