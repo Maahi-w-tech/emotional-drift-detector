@@ -202,7 +202,7 @@ def show_analyzer_page():
         st.markdown("*Select the emotional tone you're aiming for in your content*")
         
         target_emotion = st.selectbox(
-            "",
+            "Target Emotional Tone",
             ["None - Just analyze my content", "Inspirational", "Informative", "Neutral", "Empathetic", "Assertive", "Aggressive", "Defensive"],
             label_visibility="collapsed"
         )
@@ -210,7 +210,7 @@ def show_analyzer_page():
         # Input Section
         st.markdown("### 📝 Input Your Text")
         text_input = st.text_area(
-            "",
+            "Content to Analyze",
             height=250,
             placeholder="Paste your long-form text here (blog post, transcript, article, etc.)...",
             label_visibility="collapsed"

@@ -11,7 +11,7 @@ _regenerator = None
 def get_emotion_classifier():
     global _emotion_classifier
     if _emotion_classifier is None:
-        _emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", return_all_scores=True)
+        _emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", top_k=None)
     return _emotion_classifier
 
 def get_nli_model():
@@ -54,12 +54,19 @@ def classify_emotions(chunks):
     
     for idx, chunk in enumerate(chunks):
         try:
-            scores = emotion_classifier(chunk)[0]  # List of {'label': 'joy', 'score': 0.5}
+            raw_result = emotion_classifier(chunk)
             
-            # Debug: Check what we got
-            if not isinstance(scores, list):
-                print(f"ERROR: Expected list but got {type(scores)}: {scores}")
-                scores = [scores] if isinstance(scores, dict) else []
+            # Handle different return formats: 
+            # - List of lists of dicts: [[{'label': '...', 'score': ...}, ...]] (standard with top_k=None)
+            # - List of dicts: [{'label': '...', 'score': ...}, ...] (some versions or one chunk)
+            if isinstance(raw_result, list) and len(raw_result) > 0:
+                if isinstance(raw_result[0], list):
+                    scores = raw_result[0]
+                else:
+                    scores = raw_result
+            else:
+                print(f"ERROR: Unexpected raw result format {type(raw_result)}: {raw_result}")
+                scores = []
             
             mapped_scores = {}
             for s in scores:
