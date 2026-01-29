@@ -545,17 +545,17 @@ def show_analyzer_page():
                                     percentage = score * 100
                                     st.markdown(f"- **{emotion}**: {percentage:.1f}%")
                                 
-                                        # Show explanations and recommendations if flagged
-                                        if is_flagged:
-                                            for key, exp in explanations.items():
-                                                if str(idx) in key:
-                                                    st.warning(f"**⚠️ Issue Detected:** {exp}")
-                                                    
-                                            # Show recommendation if exists
-                                            rec_key = next((k for k in recommendations if str(idx) in k), None)
-                                            if rec_key and recommendations[rec_key]:
-                                                st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
-                                                st.success(recommendations[rec_key])
+                                # Show explanations and recommendations if flagged
+                                if is_flagged:
+                                    for key, exp in explanations.items():
+                                        if str(idx) in key:
+                                            st.warning(f"**⚠️ Issue Detected:** {exp}")
+                                            
+                                    # Show recommendation if exists
+                                    rec_key = next((k for k in recommendations if str(idx) in k), None)
+                                    if rec_key and recommendations[rec_key]:
+                                        st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
+                                        st.success(recommendations[rec_key])
                         
                         # Flagged Sections Summary
                         if drifts or contradictions or confusions:
