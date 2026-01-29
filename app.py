@@ -1,6 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
-from ml_pipeline import run_pipeline, regenerate_text, detect_contradictions_on_demand
+from ml_pipeline import run_pipeline, regenerate_text
 import os
 
 # Page Configuration
