@@ -1,6 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
-from ml_pipeline import run_pipeline
+from ml_pipeline import run_pipeline, regenerate_text
 import os
 
 # Page Configuration
@@ -22,6 +22,9 @@ load_css()
 # Session state for page navigation
 if 'page' not in st.session_state:
     st.session_state.page = 'landing'
+
+if 'recommendations' not in st.session_state:
+    st.session_state.recommendations = {}
 
 def show_landing_page():
     """Display the landing page with marketing content"""
@@ -228,7 +231,9 @@ def show_analyzer_page():
                 
                 with st.spinner("🧠 Processing your content with AI models..."):
                     try:
-                        chunks, emotion_vectors, drifts, contradictions, confusions, explanations, recommendations = run_pipeline(text_input, target_emotion)
+                        chunks, emotion_vectors, drifts, contradictions, confusions, explanations = run_pipeline(text_input, target_emotion)
+                        # Clear old recommendations on new analysis
+                        st.session_state.recommendations = {}
                         
                         # Clear loading message
                         loading_placeholder.empty()
@@ -551,11 +556,18 @@ def show_analyzer_page():
                                         if str(idx) in key:
                                             st.warning(f"**⚠️ Issue Detected:** {exp}")
                                             
-                                    # Show recommendation if exists
-                                    rec_key = next((k for k in recommendations if str(idx) in k), None)
-                                    if rec_key and recommendations[rec_key]:
-                                        st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
-                                        st.success(recommendations[rec_key])
+                                    # On-demand recommendation button
+                                    if target_emotion and not target_emotion.startswith("None"):
+                                        rec_key = f"rec_{idx}"
+                                        if rec_key in st.session_state.recommendations:
+                                            st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
+                                            st.success(st.session_state.recommendations[rec_key])
+                                        else:
+                                            if st.button(f"✨ Generate AI Recommendation", key=f"btn_{idx}"):
+                                                with st.spinner("Rewriting..."):
+                                                    suggestion = regenerate_text(chunk, target_emotion)
+                                                    st.session_state.recommendations[rec_key] = suggestion
+                                                    st.rerun()
                         
                         # Flagged Sections Summary
                         if drifts or contradictions or confusions:
@@ -576,11 +588,11 @@ def show_analyzer_page():
                                             if str(idx) in key:
                                                 st.warning(f"**⚠️ Issue Detected:** {exp}")
                                                 
-                                        # Show recommendation if exists
-                                        rec_key = next((k for k in recommendations if str(idx) in k), None)
-                                        if rec_key and recommendations[rec_key]:
+                                        # Show recommendation if exists in session state
+                                        rec_key = f"rec_{idx}"
+                                        if rec_key in st.session_state.recommendations:
                                             st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
-                                            st.success(recommendations[rec_key])
+                                            st.success(st.session_state.recommendations[rec_key])
                             
                             # Show contradictions separately
                             if contradictions:

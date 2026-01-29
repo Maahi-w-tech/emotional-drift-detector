@@ -135,30 +135,16 @@ def run_pipeline(text, target_emotion=None):
     contradictions = detect_contradictions(chunks)
     confusions = detect_confusion(emotion_vectors)
     
-    # Generate explanations and recommendations
+    # Generate explanations
     explanations = {}
-    recommendations = {}
     
     for start, end in drifts:
         explanations[f"drift_{start}_{end}"] = generate_explanation("drift", start, emotion_dicts[start], emotion_dicts[end])
-        if target_emotion:
-             recommendations[f"drift_{start}_{end}"] = regenerate_text(chunks[start], target_emotion)
              
     for i, j, details in contradictions:
         explanations[f"contradict_{i}_{j}"] = generate_explanation("contradiction", i, {}, {}, details)
         
     for idx in confusions:
         explanations[f"confusion_{idx}"] = generate_explanation("confusion", idx, {}, {})
-        if target_emotion:
-            recommendations[f"confusion_{idx}"] = regenerate_text(chunks[idx], target_emotion)
             
-    # Check if dominant emotion matches target for all segments
-    if target_emotion and not target_emotion.startswith("None"):
-        labels = ["Inspirational", "Informative", "Neutral", "Empathetic", "Assertive", "Aggressive", "Defensive"]
-        for idx, vec in enumerate(emotion_vectors):
-            dominant_idx = vec.index(max(vec))
-            dominant_emotion = labels[dominant_idx]
-            if dominant_emotion != target_emotion and f"confusion_{idx}" not in recommendations and f"drift_{idx}_" not in "".join(recommendations.keys()):
-                recommendations[f"target_mismatch_{idx}"] = regenerate_text(chunks[idx], target_emotion)
-
-    return chunks, emotion_vectors, drifts, contradictions, confusions, explanations, recommendations
+    return chunks, emotion_vectors, drifts, contradictions, confusions, explanations
