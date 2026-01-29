@@ -436,7 +436,7 @@ def show_analyzer_page():
                                 <div style='background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); 
                                             padding: 1.5rem; border-radius: 15px; text-align: center; 
                                             border: 2px solid #C6BADE; box-shadow: 0 4px 6px rgba(74, 50, 103, 0.1);'>
-                                    <h3 style='color: #DE638A; margin: 0;'>{len(contradictions)}</h3>
+                                    <h3 style='color: #DE638A; margin: 0;'>{len(st.session_state.contradictions)}</h3>
                                     <p style='color: #4A3267; margin: 0.5rem 0 0 0;'>Contradictions</p>
                                 </div>
                             """, unsafe_allow_html=True)
@@ -516,8 +516,8 @@ def show_analyzer_page():
                             insights.append("✨ **No Major Drifts**: Your emotional tone flows smoothly from start to finish")
                         
                         # Contradiction analysis
-                        if len(contradictions) > 0:
-                            insights.append(f"⚠️ **Contradictions Found**: {len(contradictions)} contradictory statement(s) detected - these may confuse readers")
+                        if len(st.session_state.contradictions) > 0:
+                            insights.append(f"⚠️ **Contradictions Found**: {len(st.session_state.contradictions)} contradictory statement(s) detected - these may confuse readers")
                         
                         # Confusion analysis
                         if len(confusions) > 0:
@@ -639,7 +639,7 @@ def show_analyzer_page():
                             })
                         
                         # Contradiction suggestions
-                        if len(contradictions) > 0:
+                        if len(st.session_state.contradictions) > 0:
                             suggestions.append({
                                 "title": "🔄 Resolve Contradictions",
                                 "tips": [
