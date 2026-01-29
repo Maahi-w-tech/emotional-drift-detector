@@ -5,7 +5,6 @@ from utils import preprocess_and_chunk, generate_explanation
 
 # Global variables to cache models
 _emotion_classifier = None
-_nli_model = None
 _regenerator = None
 
 def get_emotion_classifier():
@@ -14,15 +13,10 @@ def get_emotion_classifier():
         _emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", top_k=None)
     return _emotion_classifier
 
-def get_nli_model():
-    global _nli_model
-    if _nli_model is None:
-        _nli_model = pipeline("text-classification", model="cross-encoder/nli-distilroberta-base")
-    return _nli_model
-
 def get_regenerator():
     global _regenerator
     if _regenerator is None:
+        # Using T5-small for speed and lower memory usage
         _regenerator = pipeline(model="google/flan-t5-small")
     return _regenerator
 
@@ -33,7 +27,8 @@ def regenerate_text(text, target_emotion):
     regenerator = get_regenerator()
     prompt = f"Rewrite the following text to have a {target_emotion} tone: {text}"
     try:
-        result = regenerator(prompt, max_length=len(text.split()) * 2 + 50, do_sample=True)[0]['generated_text']
+        # Limit max_length to prevent AI load
+        result = regenerator(prompt, max_length=150, do_sample=True, temperature=0.7)[0]['generated_text']
         return result
     except Exception as e:
         print(f"Error in text regeneration: {str(e)}")
@@ -76,7 +71,7 @@ def classify_emotions(chunks):
                     label = emotion_map.get(s['label'], 'Neutral')
                     mapped_scores[label] += s['score']
             
-            # Bias Correction: If Neutral is dominant but low intensity, and others exist
+            # Bias Correction: If Neutral is dominant but low intensity
             if mapped_scores["Neutral"] > 0.4 and mapped_scores["Neutral"] < 0.8:
                 other_max = max([v for k, v in mapped_scores.items() if k != "Neutral"])
                 if other_max > 0.1:
@@ -97,36 +92,20 @@ def classify_emotions(chunks):
 def detect_drift(emotion_vectors):
     # Use change-point detection
     signal = np.array(emotion_vectors)
-    algo = rpt.Pelt(model="rbf").fit(signal)
-    change_points = algo.predict(pen=10)  # Penalty for fewer points
-    drifts = []
-    for i in range(1, len(change_points)):
-        start = change_points[i-1]
-        end = change_points[i]
-        if end < len(emotion_vectors):
-            drifts.append((start, end))
-    return drifts
-
-def detect_contradictions_on_demand(chunks):
-    contradictions = []
-    nli_model = get_nli_model()
-    # Limit calculation to prevent server load
-    max_checks = 15 
-    count = 0
-    for i in range(len(chunks)):
-        for j in range(i+1, len(chunks)):
-            if count >= max_checks: break
-            premise = chunks[i]
-            hypothesis = chunks[j]
-            try:
-                # cross-encoder/nli-distilroberta-base returns results differently
-                result = nli_model([{"text": premise, "text_pair": hypothesis}])
-                if result and result[0].get('label') == 'contradiction' and result[0].get('score', 0) > 0.6:
-                    contradictions.append((i, j, f"Segment {i+1} might contradict Segment {j+1}"))
-                count += 1
-            except:
-                continue
-    return contradictions
+    if len(signal) < 2:
+        return []
+    try:
+        algo = rpt.Pelt(model="rbf").fit(signal)
+        change_points = algo.predict(pen=10)  # Penalty for fewer points
+        drifts = []
+        for i in range(1, len(change_points)):
+            start = change_points[i-1]
+            end = change_points[i]
+            if end < len(emotion_vectors):
+                drifts.append((start, end))
+        return drifts
+    except:
+        return []
 
 def detect_confusion(emotion_vectors, threshold=0.75):
     confusions = []

@@ -26,9 +26,6 @@ if 'page' not in st.session_state:
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = {}
 
-if 'contradictions' not in st.session_state:
-    st.session_state.contradictions = []
-
 def show_landing_page():
     """Display the landing page with marketing content"""
     
@@ -238,7 +235,6 @@ def show_analyzer_page():
                         chunks, emotion_vectors, drifts, confusions, explanations = run_pipeline(text_input, target_emotion)
                         # Clear old session data on new analysis
                         st.session_state.recommendations = {}
-                        st.session_state.contradictions = []
                         
                         # Clear loading message
                         loading_placeholder.empty()
@@ -515,10 +511,6 @@ def show_analyzer_page():
                         else:
                             insights.append("✨ **No Major Drifts**: Your emotional tone flows smoothly from start to finish")
                         
-                        # Contradiction analysis
-                        if len(st.session_state.contradictions) > 0:
-                            insights.append(f"⚠️ **Contradictions Found**: {len(st.session_state.contradictions)} contradictory statement(s) detected - these may confuse readers")
-                        
                         # Confusion analysis
                         if len(confusions) > 0:
                             insights.append(f"😕 **Confusion Points**: {len(confusions)} segment(s) with mixed emotional signals - consider simplifying")
@@ -599,24 +591,7 @@ def show_analyzer_page():
                                             st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
                                             st.success(st.session_state.recommendations[rec_key])
 
-                        # Contradiction Scanner
-                        st.markdown("---")
-                        st.markdown("## 🔄 Contradiction Scanner")
-                        st.markdown("Analyze consistency between different parts of your content.")
-                        
-                        if not st.session_state.contradictions:
-                            if st.button("🔍 Scan for Contradictions"):
-                                with st.spinner("Analyzing logical consistency..."):
-                                    st.session_state.contradictions = detect_contradictions_on_demand(chunks)
-                                    st.rerun()
-                        else:
-                            if len(st.session_state.contradictions) > 0:
-                                for i, j, details in st.session_state.contradictions:
-                                    st.error(f"**Potentially Contradictory:** {details}")
-                            else:
-                                st.success("No logical contradictions found between major segments!")
-                        
-                        if not drifts and not confusions and not st.session_state.contradictions:
+                        if not drifts and not confusions:
                             st.markdown("---")
                             st.success("🎉 **Great news!** No significant issues detected in your content. Your emotional tone is consistent throughout!")
                         
@@ -638,18 +613,6 @@ def show_analyzer_page():
                                 ]
                             })
                         
-                        # Contradiction suggestions
-                        if len(st.session_state.contradictions) > 0:
-                            suggestions.append({
-                                "title": "🔄 Resolve Contradictions",
-                                "tips": [
-                                    "Review contradictory statements and choose the message you want to emphasize",
-                                    "If presenting multiple perspectives, use clear transitions (e.g., 'On the other hand...')",
-                                    "Ensure your conclusion aligns with your main argument",
-                                    "Consider removing or rephrasing statements that conflict with your core message"
-                                ]
-                            })
-                        
                         # Confusion suggestions
                         if len(confusions) > 0:
                             suggestions.append({
@@ -661,6 +624,31 @@ def show_analyzer_page():
                                     "Focus each paragraph on one main idea or emotion"
                                 ]
                             })
+                        
+                        # AI Regeneration Suggestions
+                        if target_emotion and not target_emotion.startswith("None"):
+                            mismatches = []
+                            labels_list = ["Inspirational", "Informative", "Neutral", "Empathetic", "Assertive", "Aggressive", "Defensive"]
+                            for i, vec in enumerate(emotion_vectors):
+                                dominant_idx = vec.index(max(vec))
+                                dominant_emotion = labels_list[dominant_idx]
+                                if dominant_emotion != target_emotion:
+                                    mismatches.append(i)
+                            
+                            if mismatches:
+                                with st.expander(f"✨ AI Tone Recommendations (to match {target_emotion})", expanded=True):
+                                    st.markdown(f"The following segments don't quite match your target **{target_emotion}** tone. Click to see AI-generated improvements.")
+                                    for idx in mismatches:
+                                        chunk_preview = chunks[idx][:60] + "..."
+                                        st.markdown(f"**Segment {idx+1}**: *\"{chunk_preview}\"*")
+                                        rec_key = f"rec_{idx}"
+                                        if rec_key in st.session_state.recommendations:
+                                            st.success(st.session_state.recommendations[rec_key])
+                                        else:
+                                            if st.button(f"Generate Revision for Segment {idx+1}", key=f"suggest_btn_{idx}"):
+                                                with st.spinner("Rewriting..."):
+                                                    st.session_state.recommendations[rec_key] = regenerate_text(chunks[idx], target_emotion)
+                                                    st.rerun()
                         
                         # General suggestions based on dominant emotion
                         avg_emotions = [sum(vec[i] for vec in emotion_vectors) / len(emotion_vectors) for i in range(len(labels))]
