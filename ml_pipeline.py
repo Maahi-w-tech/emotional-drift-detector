@@ -23,7 +23,7 @@ def get_nli_model():
 def get_regenerator():
     global _regenerator
     if _regenerator is None:
-        _regenerator = pipeline("text2text-generation", model="google/flan-t5-base")
+        _regenerator = pipeline(model="google/flan-t5-base")
     return _regenerator
 
 def regenerate_text(text, target_emotion):
