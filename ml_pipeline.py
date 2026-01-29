@@ -17,13 +17,13 @@ def get_emotion_classifier():
 def get_nli_model():
     global _nli_model
     if _nli_model is None:
-        _nli_model = pipeline("text-classification", model="roberta-large-mnli")
+        _nli_model = pipeline("text-classification", model="cross-encoder/nli-distilroberta-base")
     return _nli_model
 
 def get_regenerator():
     global _regenerator
     if _regenerator is None:
-        _regenerator = pipeline(model="google/flan-t5-base")
+        _regenerator = pipeline(model="google/flan-t5-small")
     return _regenerator
 
 def regenerate_text(text, target_emotion):
@@ -39,12 +39,15 @@ def regenerate_text(text, target_emotion):
         print(f"Error in text regeneration: {str(e)}")
         return None
 
-# Map emotions to our labels (approximate for demo)
+# Map Hartmann's 7 emotions to user labels
 emotion_map = {
-    "joy": "Inspirational", "optimism": "Inspirational", "anger": "Aggressive", "disappointment": "Defensive",
-    "sadness": "Empathetic", "fear": "Defensive", "surprise": "Neutral", "love": "Empathetic",
-    "admiration": "Inspirational", "gratitude": "Empathetic", "annoyance": "Assertive", "disapproval": "Defensive",
-    "neutral": "Neutral", "curiosity": "Informative", "confusion": "Neutral"  # Add more as needed
+    "joy": "Inspirational", 
+    "anger": "Aggressive", 
+    "disgust": "Aggressive",
+    "sadness": "Empathetic", 
+    "fear": "Defensive", 
+    "surprise": "Neutral", 
+    "neutral": "Neutral"
 }
 
 def classify_emotions(chunks):
@@ -52,38 +55,39 @@ def classify_emotions(chunks):
     emotion_dicts = []
     emotion_classifier = get_emotion_classifier()
     
+    # Define our labels
+    labels = ["Inspirational", "Informative", "Neutral", "Empathetic", "Assertive", "Aggressive", "Defensive"]
+
     for idx, chunk in enumerate(chunks):
         try:
             raw_result = emotion_classifier(chunk)
             
-            # Handle different return formats: 
-            # - List of lists of dicts: [[{'label': '...', 'score': ...}, ...]] (standard with top_k=None)
-            # - List of dicts: [{'label': '...', 'score': ...}, ...] (some versions or one chunk)
+            # Extract scores
             if isinstance(raw_result, list) and len(raw_result) > 0:
-                if isinstance(raw_result[0], list):
-                    scores = raw_result[0]
-                else:
-                    scores = raw_result
+                scores = raw_result[0] if isinstance(raw_result[0], list) else raw_result
             else:
-                print(f"ERROR: Unexpected raw result format {type(raw_result)}: {raw_result}")
                 scores = []
             
-            mapped_scores = {}
+            # Map Hartmann results to our labels
+            mapped_scores = {label: 0.0 for label in labels}
+            
             for s in scores:
                 if isinstance(s, dict) and 'label' in s and 'score' in s:
-                    emotion_label = emotion_map.get(s['label'], 'Neutral')
-                    mapped_scores[emotion_label] = s['score']
-                else:
-                    print(f"ERROR: Invalid score format: {s}")
+                    label = emotion_map.get(s['label'], 'Neutral')
+                    mapped_scores[label] += s['score']
             
-            # Ensure all labels are present
-            full_scores = {label: mapped_scores.get(label, 0.0) for label in ["Inspirational", "Informative", "Neutral", "Empathetic", "Assertive", "Aggressive", "Defensive"]}
-            emotion_vectors.append(list(full_scores.values()))
-            emotion_dicts.append(full_scores)
+            # Bias Correction: If Neutral is dominant but low intensity, and others exist
+            if mapped_scores["Neutral"] > 0.4 and mapped_scores["Neutral"] < 0.8:
+                other_max = max([v for k, v in mapped_scores.items() if k != "Neutral"])
+                if other_max > 0.1:
+                    # Slightly boost the more "active" emotions to reduce neutral bias
+                    mapped_scores["Neutral"] *= 0.8
+            
+            emotion_vectors.append(list(mapped_scores.values()))
+            emotion_dicts.append(mapped_scores)
             
         except Exception as e:
             print(f"ERROR in chunk {idx}: {str(e)}")
-            print(f"Chunk text: {chunk[:100]}...")
             import traceback
             traceback.print_exc()
             raise
@@ -103,34 +107,33 @@ def detect_drift(emotion_vectors):
             drifts.append((start, end))
     return drifts
 
-def detect_contradictions(chunks):
+def detect_contradictions_on_demand(chunks):
     contradictions = []
     nli_model = get_nli_model()
+    # Limit calculation to prevent server load
+    max_checks = 15 
+    count = 0
     for i in range(len(chunks)):
         for j in range(i+1, len(chunks)):
+            if count >= max_checks: break
             premise = chunks[i]
             hypothesis = chunks[j]
             try:
-                result = nli_model(f"{premise} [SEP] {hypothesis}")
-                
-                # Handle different output formats
-                if isinstance(result, list) and len(result) > 0:
-                    first_result = result[0]
-                    if isinstance(first_result, dict) and 'label' in first_result and 'score' in first_result:
-                        if first_result['label'] == 'CONTRADICTION' and first_result['score'] > 0.5:
-                            contradictions.append((i, j, f"{premise[:50]}... contradicts {hypothesis[:50]}..."))
-                    else:
-                        print(f"Unexpected NLI result format: {first_result}")
-            except Exception as e:
-                print(f"Error in contradiction detection between chunks {i} and {j}: {str(e)}")
+                # cross-encoder/nli-distilroberta-base returns results differently
+                result = nli_model([{"text": premise, "text_pair": hypothesis}])
+                if result and result[0].get('label') == 'contradiction' and result[0].get('score', 0) > 0.6:
+                    contradictions.append((i, j, f"Segment {i+1} might contradict Segment {j+1}"))
+                count += 1
+            except:
                 continue
     return contradictions
-    return contradictions
 
-def detect_confusion(emotion_vectors, threshold=0.8):
+def detect_confusion(emotion_vectors, threshold=0.75):
     confusions = []
     for idx, vec in enumerate(emotion_vectors):
-        entropy = -sum(p * np.log(p + 1e-9) for p in vec if p > 0)  # Shannon entropy
+        p = np.array(vec)
+        p = p / (p.sum() + 1e-9)
+        entropy = -sum(x * np.log(x + 1e-9) for x in p if x > 0)
         if entropy > threshold:
             confusions.append(idx)
     return confusions
@@ -139,19 +142,13 @@ def run_pipeline(text, target_emotion=None):
     chunks = preprocess_and_chunk(text)
     emotion_vectors, emotion_dicts = classify_emotions(chunks)
     drifts = detect_drift(emotion_vectors)
-    contradictions = detect_contradictions(chunks)
     confusions = detect_confusion(emotion_vectors)
     
     # Generate explanations
     explanations = {}
-    
     for start, end in drifts:
         explanations[f"drift_{start}_{end}"] = generate_explanation("drift", start, emotion_dicts[start], emotion_dicts[end])
-             
-    for i, j, details in contradictions:
-        explanations[f"contradict_{i}_{j}"] = generate_explanation("contradiction", i, {}, {}, details)
-        
     for idx in confusions:
         explanations[f"confusion_{idx}"] = generate_explanation("confusion", idx, {}, {})
             
-    return chunks, emotion_vectors, drifts, contradictions, confusions, explanations
+    return chunks, emotion_vectors, drifts, confusions, explanations

@@ -1,6 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
-from ml_pipeline import run_pipeline, regenerate_text
+from ml_pipeline import run_pipeline, regenerate_text, detect_contradictions_on_demand
 import os
 
 # Page Configuration
@@ -25,6 +25,9 @@ if 'page' not in st.session_state:
 
 if 'recommendations' not in st.session_state:
     st.session_state.recommendations = {}
+
+if 'contradictions' not in st.session_state:
+    st.session_state.contradictions = []
 
 def show_landing_page():
     """Display the landing page with marketing content"""
@@ -231,9 +234,11 @@ def show_analyzer_page():
                 
                 with st.spinner("🧠 Processing your content with AI models..."):
                     try:
-                        chunks, emotion_vectors, drifts, contradictions, confusions, explanations = run_pipeline(text_input, target_emotion)
-                        # Clear old recommendations on new analysis
+                        # run_pipeline now returns 5 values (chunks, emotion_vectors, drifts, confusions, explanations)
+                        chunks, emotion_vectors, drifts, confusions, explanations = run_pipeline(text_input, target_emotion)
+                        # Clear old session data on new analysis
                         st.session_state.recommendations = {}
+                        st.session_state.contradictions = []
                         
                         # Clear loading message
                         loading_placeholder.empty()
@@ -472,7 +477,7 @@ def show_analyzer_page():
                         
                         st.markdown(f"""
                             <div style='background: rgba(198, 186, 222, 0.15); padding: 1.5rem; border-radius: 15px; border-left: 4px solid #C6BADE;'>
-                                {journey_text}
+                                {journey_text.replace("<", "&lt;").replace(">", "&gt;")}
                             </div>
                         """, unsafe_allow_html=True)
                         
@@ -521,7 +526,7 @@ def show_analyzer_page():
                         for insight in insights:
                             st.markdown(f"""
                                 <div style='background: rgba(247, 185, 196, 0.15); padding: 1rem 1.5rem; border-radius: 10px; margin: 0.5rem 0; border-left: 3px solid #F7B9C4;'>
-                                    {insight}
+                                    {insight.replace("<", "&lt;").replace(">", "&gt;")}
                                 </div>
                             """, unsafe_allow_html=True)
                         
@@ -567,10 +572,10 @@ def show_analyzer_page():
                                                 with st.spinner("Rewriting..."):
                                                     suggestion = regenerate_text(chunk, target_emotion)
                                                     st.session_state.recommendations[rec_key] = suggestion
-                                                    st.rerun()
+                                                    st.success(st.session_state.recommendations[rec_key])
                         
                         # Flagged Sections Summary
-                        if drifts or contradictions or confusions:
+                        if drifts or confusions:
                             st.markdown("---")
                             st.markdown("## 🚩 Flagged Sections")
                             st.markdown("*Click on any section below to view details and recommendations*")
@@ -593,13 +598,25 @@ def show_analyzer_page():
                                         if rec_key in st.session_state.recommendations:
                                             st.markdown(f"**✨ Suggested Revision (to match {target_emotion}):**")
                                             st.success(st.session_state.recommendations[rec_key])
-                            
-                            # Show contradictions separately
-                            if contradictions:
-                                st.markdown("### 🔄 Contradictory Statements")
-                                for i, j, details in contradictions:
-                                    st.error(f"**Segments {i+1} and {j+1}:** {details}")
+
+                        # Contradiction Scanner
+                        st.markdown("---")
+                        st.markdown("## 🔄 Contradiction Scanner")
+                        st.markdown("Analyze consistency between different parts of your content.")
+                        
+                        if not st.session_state.contradictions:
+                            if st.button("🔍 Scan for Contradictions"):
+                                with st.spinner("Analyzing logical consistency..."):
+                                    st.session_state.contradictions = detect_contradictions_on_demand(chunks)
+                                    st.rerun()
                         else:
+                            if len(st.session_state.contradictions) > 0:
+                                for i, j, details in st.session_state.contradictions:
+                                    st.error(f"**Potentially Contradictory:** {details}")
+                            else:
+                                st.success("No logical contradictions found between major segments!")
+                        
+                        if not drifts and not confusions and not st.session_state.contradictions:
                             st.markdown("---")
                             st.success("🎉 **Great news!** No significant issues detected in your content. Your emotional tone is consistent throughout!")
                         
